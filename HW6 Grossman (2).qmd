@@ -1,0 +1,186 @@
+---
+title: "HW6 "
+author: "Jake Grossman"
+editor: visual
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r setup}
+library(tidyverse)
+library(tidytext)
+library(schrute)
+```
+
+# The Office
+
+Let's continue to work with *The Office* text from the [schrute](https://cran.r-project.org/web/packages/schrute/index.html) package.
+
+```{r}
+library(schrute)
+library(tidyverse)
+library(tidytext)
+library(lexicon)
+library(kableExtra)
+
+```
+
+# Sentiment Analysis
+
+```{r}
+office <- schrute::theoffice
+
+## Make sure air_date is a Date
+office <- office %>%
+  mutate(air_date = as.Date(air_date))
+
+bing <- get_sentiments("bing")
+bing
+
+# Episode-level metadata (one row per episode)
+episode_lite <- office %>%
+  group_by(season, episode) %>%
+  summarise(
+    episode_name = first(episode_name),
+    imdb_rating  = first(imdb_rating),
+    air_date     = first(air_date),
+    .groups = "drop"
+  ) %>%
+  arrange(air_date, season, episode)
+episode_lite
+```
+
+### Over Time
+
+Calculate the sentiment score (positive - negative) for each episode, and plot this variable over time.
+
+```{r}
+episode_sent <- office %>%
+  mutate(text = str_to_lower(text)) %>%
+  unnest_tokens(word, text) %>%
+  inner_join(bing, by = "word") %>%
+  count(season, episode, sentiment, name = "n") %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+  mutate(sent_score = positive - negative) %>%
+  right_join(episode_meta, by = c("season","episode")) %>%
+  replace_na(list(sent_score = 0, positive = 0, negative = 0))
+
+episode_sent
+# Preportion for episodes (and testing out kableExtra)
+episode_sent <- episode_sent %>% mutate(pos_prop = positive/(negative+positive))
+
+
+episode_kable <- episode_sent %>%
+  select(season, episode_name, imdb_rating, pos_prop) %>%
+  arrange(desc(pos_prop)) %>% slice_head(n=10)
+
+episode_kable %>% kable() %>% kable_minimal() %>%
+  collapse_rows(columns = 1, valign = "top") %>% 
+    kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    position = "left",
+    font_size = 14,
+    fixed_thead = T)
+
+ggplot(episode_sent_naive, aes(x = air_date, y = sent_score)) +
+  geom_hline(yintercept = 0, linewidth = 0.4) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.7) +
+  labs(
+    title = "Episode sentiment over time",
+    x = "Air date",# need Air date due to episodes having the same number per-season
+    y = "Sentiment score (positive - negative)"
+  ) +
+  theme_minimal()
+
+```
+
+### By Rating
+
+Create a scatterplot of the `imdb_rating` versus the sentiment score (positive - negative), where the case is again an episode. Decide whether a linear model is a good fit to this relationship (optional, if you have had modeling classes, what model looks best?). Comment on what you find.
+
+```{r}
+df_rating_naive <- episode_sent %>% filter(!is.na(imdb_rating))
+
+ggplot(df_rating_naive, aes(x = imdb_rating, y = sent_score)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_smooth(method = "loess", se = FALSE, linetype = 2) +
+  labs(
+    title = "IMDb rating vs sentiment (naive)",
+    x = "IMDb rating",
+    y = "Sentiment score (positive - negative)"
+  ) +
+  theme_minimal()
+
+m_lm <- lm(sent_score ~ imdb_rating, data = df_rating_naive)
+summary(m_lm)
+
+m_poly2 <- lm(sent_score ~ poly(imdb_rating, 2), data = df_rating_naive)
+AIC(m_lm, m_poly2)
+
+
+```
+
+The Scatter plot shows a slight positive relation between the IMDb rating and the sentiment score. it shows that fro every \~13 more positive words the IMDb score goes up a point, also the R\^2 value is \~ 0.044 so the rating only explains about 4% of the variability. And the non linear model is slightly better due to a low AIC however I don't think that the poly2 is the best option for this case.
+
+### Sentiment Negation
+
+Identify at least a few negations that change the sentiment values based on the text. Use this to recreate the graphs above (or do this first, then create the graphs).
+
+```{r}
+# Define negation words
+negation_words <- c("not", "no", "never", "without", "don't", "doesn't", 
+                    "didn't", "won't", "can't", "cannot", "hardly", "barely")
+
+# Tokenize into bigrams to capture negation context
+office_bigrams <- theoffice %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  separate(bigram, into = c("word1", "word2"), sep = " ")
+
+# Identify bigrams where word1 is a negation
+negated_words <- office_bigrams %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(get_sentiments("afinn"), by = c("word2" = "word")) %>%
+  mutate(value = -value)  # flip the sentiment score
+
+# Non-negated sentiment (standard)
+normal_sentiment <- office_bigrams %>%
+  filter(!word1 %in% negation_words) %>%
+  inner_join(get_sentiments("afinn"), by = c("word2" = "word"))
+
+# Combine both
+adjusted_sentiment <- bind_rows(normal_sentiment, negated_words)
+
+# Summarise by episode
+episode_sent_negation <- adjusted_sentiment %>%
+  group_by(season, episode, air_date) %>%
+  summarise(sent_score = sum(value), .groups = "drop")
+
+# Plot
+ggplot(episode_sent_negation, aes(x = air_date, y = sent_score)) +
+  geom_col(width = 0.4) +
+  geom_hline(yintercept = 0, linewidth = 0.4) +
+  labs(
+    title = "Episode sentiment over time (negation-adjusted)",
+    x = "Episode",
+    y = "Sentiment score (positive - negative)"
+  )
+
+episode_kable_neg <- episode_sent_negation %>%
+  select(season, episode, sent_score) %>%
+  arrange(desc(sent_score)) %>% slice_head(n=10)
+
+episode_kable_neg %>% kable() %>% kable_minimal() %>%
+  collapse_rows(columns = 1, valign = "top") %>% 
+    kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    position = "left",
+    font_size = 14,
+    fixed_thead = T)
+```
