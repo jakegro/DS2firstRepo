@@ -33,17 +33,13 @@ library(kableExtra)
 # Sentiment Analysis
 
 ```{r}
-office <- schrute::theoffice
-
-## Make sure air_date is a Date
-office <- office %>%
+office <- schrute::theoffice %>%
   mutate(air_date = as.Date(air_date))
 
 bing <- get_sentiments("bing")
-bing
 
 # Episode-level metadata (one row per episode)
-episode_lite <- office %>%
+episode_meta <- office %>%
   group_by(season, episode) %>%
   summarise(
     episode_name = first(episode_name),
@@ -52,7 +48,8 @@ episode_lite <- office %>%
     .groups = "drop"
   ) %>%
   arrange(air_date, season, episode)
-episode_lite
+
+episode_meta
 ```
 
 ### Over Time
@@ -67,37 +64,38 @@ episode_sent <- office %>%
   count(season, episode, sentiment, name = "n") %>%
   pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
   mutate(sent_score = positive - negative) %>%
-  right_join(episode_meta, by = c("season","episode")) %>%
-  replace_na(list(sent_score = 0, positive = 0, negative = 0))
+  right_join(episode_meta, by = c("season", "episode")) %>%
+  replace_na(list(sent_score = 0, positive = 0, negative = 0)) %>%
+  mutate(pos_prop = positive / (positive + negative))
 
 episode_sent
-# Preportion for episodes (and testing out kableExtra)
-episode_sent <- episode_sent %>% mutate(pos_prop = positive/(negative+positive))
-
 
 episode_kable <- episode_sent %>%
   select(season, episode_name, imdb_rating, pos_prop) %>%
-  arrange(desc(pos_prop)) %>% slice_head(n=10)
+  arrange(desc(pos_prop)) %>%
+  slice_head(n = 10)
 
-episode_kable %>% kable() %>% kable_minimal() %>%
-  collapse_rows(columns = 1, valign = "top") %>% 
-    kable_styling(
+episode_kable %>%
+  kable() %>%
+  kable_minimal() %>%
+  collapse_rows(columns = 1, valign = "top") %>%
+  kable_styling(
     bootstrap_options = c("striped", "hover"),
     position = "left",
     font_size = 14,
-    fixed_thead = T)
+    fixed_thead = TRUE
+  )
 
-ggplot(episode_sent_naive, aes(x = air_date, y = sent_score)) +
+ggplot(episode_sent, aes(x = air_date, y = sent_score)) +
   geom_hline(yintercept = 0, linewidth = 0.4) +
   geom_line(linewidth = 0.7) +
   geom_point(size = 1.7) +
   labs(
     title = "Episode sentiment over time",
-    x = "Air date",# need Air date due to episodes having the same number per-season
+    x = "Air date",
     y = "Sentiment score (positive - negative)"
   ) +
   theme_minimal()
-
 ```
 
 ### By Rating
@@ -138,49 +136,54 @@ Identify at least a few negations that change the sentiment values based on the 
 negation_words <- c("not", "no", "never", "without", "don't", "doesn't", 
                     "didn't", "won't", "can't", "cannot", "hardly", "barely")
 
-# Tokenize into bigrams to capture negation context
-office_bigrams <- theoffice %>%
+# Tokenize into bigrams
+office_bigrams <- office %>%
   unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
   separate(bigram, into = c("word1", "word2"), sep = " ")
 
-# Identify bigrams where word1 is a negation
+# Negated sentiment
 negated_words <- office_bigrams %>%
   filter(word1 %in% negation_words) %>%
   inner_join(get_sentiments("afinn"), by = c("word2" = "word")) %>%
-  mutate(value = -value)  # flip the sentiment score
+  mutate(value = -value)
 
-# Non-negated sentiment (standard)
+# Non-negated sentiment
 normal_sentiment <- office_bigrams %>%
   filter(!word1 %in% negation_words) %>%
   inner_join(get_sentiments("afinn"), by = c("word2" = "word"))
 
-# Combine both
+# Combine
 adjusted_sentiment <- bind_rows(normal_sentiment, negated_words)
 
-# Summarise by episode
+# Summarise by episode, then re-attach episode metadata
 episode_sent_negation <- adjusted_sentiment %>%
-  group_by(season, episode, air_date) %>%
-  summarise(sent_score = sum(value), .groups = "drop")
+  group_by(season, episode) %>%
+  summarise(sent_score = sum(value), .groups = "drop") %>%
+  left_join(episode_meta, by = c("season", "episode"))
 
-# Plot
 ggplot(episode_sent_negation, aes(x = air_date, y = sent_score)) +
   geom_col(width = 0.4) +
   geom_hline(yintercept = 0, linewidth = 0.4) +
   labs(
     title = "Episode sentiment over time (negation-adjusted)",
-    x = "Episode",
-    y = "Sentiment score (positive - negative)"
-  )
+    x = "Air date",
+    y = "Sentiment score"
+  ) +
+  theme_minimal()
 
 episode_kable_neg <- episode_sent_negation %>%
   select(season, episode, sent_score) %>%
-  arrange(desc(sent_score)) %>% slice_head(n=10)
+  arrange(desc(sent_score)) %>%
+  slice_head(n = 10)
 
-episode_kable_neg %>% kable() %>% kable_minimal() %>%
-  collapse_rows(columns = 1, valign = "top") %>% 
-    kable_styling(
+episode_kable_neg %>%
+  kable() %>%
+  kable_minimal() %>%
+  collapse_rows(columns = 1, valign = "top") %>%
+  kable_styling(
     bootstrap_options = c("striped", "hover"),
     position = "left",
     font_size = 14,
-    fixed_thead = T)
+    fixed_thead = TRUE
+  )
 ```
