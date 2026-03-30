@@ -98,6 +98,8 @@ ggplot(episode_sent, aes(x = air_date, y = sent_score)) +
   theme_minimal()
 ```
 
+\*Comment: I have also started trying to implement kable and kableExtra in my work, so I really liked your use of kable to present the top episodes. I find using these tables allows results to be displayed in a much more clean, readable, and organized way. The styling choices you make keep things simple, while also making sure to highlight the necessary information.
+
 ### By Rating
 
 Create a scatterplot of the `imdb_rating` versus the sentiment score (positive - negative), where the case is again an episode. Decide whether a linear model is a good fit to this relationship (optional, if you have had modeling classes, what model looks best?). Comment on what you find.
@@ -126,6 +128,8 @@ AIC(m_lm, m_poly2)
 ```
 
 The Scatter plot shows a slight positive relation between the IMDb rating and the sentiment score. it shows that fro every \~13 more positive words the IMDb score goes up a point, also the R\^2 value is \~ 0.044 so the rating only explains about 4% of the variability. And the non linear model is slightly better due to a low AIC however I don't think that the poly2 is the best option for this case.
+
+\*Comment: As a non-statistics major, I really appreciate and enjoy your explanation here of the relationship between IMDBb rating and sentiment. I find the explanation very clear and informative, especially how you reference both the significance and meaning of the slope and R\^2 values. I like how you tied the statistical results back to the overall takeaway of the graph, making it easy to interpret the findings.
 
 ### Sentiment Negation
 
@@ -187,3 +191,7 @@ episode_kable_neg %>%
     fixed_thead = TRUE
   )
 ```
+
+\*Comment: I found your use of the afinn sentiment lexicon in your sentiment negation really interesting. Before looking at your work, I was pretty unfamiliar with it, but after figuring out what it is and how you utilized it to adjust sentiment values, I really was able to see and understand its use case.
+
+\*Suggestion: One suggestion I might have, which is something I'm looking to work on myself, is adding a bit more detail to plot labels or captions. I think doing this can help guide the viewer on what they are supposed to take away from each graph/visual, especially if the viewer isn't getting direct access to your code or comments. For example, in your plot of episode sentiment over time, you could briefly clarify what a higher or lower sentiment score represents.
