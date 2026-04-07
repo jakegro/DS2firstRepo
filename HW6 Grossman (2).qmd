@@ -211,4 +211,6 @@ episode_kable_neg %>%
 
 \*Comment: I found your use of the afinn sentiment lexicon in your sentiment negation really interesting. Before looking at your work, I was pretty unfamiliar with it, but after figuring out what it is and how you utilized it to adjust sentiment values, I really was able to see and understand its use case.
 
+\*I Have made adjustments to the final plot highlighting the top three episodes. I did not know what graph would be best therefore I thought this one was applicable.
+
 \*Suggestion: One suggestion I might have, which is something I'm looking to work on myself, is adding a bit more detail to plot labels or captions. I think doing this can help guide the viewer on what they are supposed to take away from each graph/visual, especially if the viewer isn't getting direct access to your code or comments. For example, in your plot of episode sentiment over time, you could briefly clarify what a higher or lower sentiment score represents.
