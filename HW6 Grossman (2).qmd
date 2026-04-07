@@ -165,15 +165,32 @@ episode_sent_negation <- adjusted_sentiment %>%
   summarise(sent_score = sum(value), .groups = "drop") %>%
   left_join(episode_meta, by = c("season", "episode"))
 
+highlight_eps <- episode_sent_negation %>%
+  slice_max(sent_score, n = 3)
+
 ggplot(episode_sent_negation, aes(x = air_date, y = sent_score)) +
-  geom_col(width = 0.4) +
+  geom_col(width = 14, fill = "gray55", alpha = 0.9) +
   geom_hline(yintercept = 0, linewidth = 0.4) +
-  labs(
-    title = "Episode sentiment over time (negation-adjusted)",
-    x = "Air date",
-    y = "Sentiment score"
+  geom_text(
+    data = highlight_eps,
+    aes(label = paste0("S", season, "E", episode)),
+    vjust = -0.4,
+    size = 3,
+    check_overlap = TRUE
   ) +
-  theme_minimal()
+  labs(
+    title = "Episode Sentiment Over Time (Negation-Adjusted)",
+    subtitle = "Each bar represents one episode. Higher scores indicate more positive language   
+    overall, while scores closer to 0 indicate less positive or more negative language.",
+    x = "Air date",
+    y = "Net sentiment score per episode\n(Higher = more positive language overall)",
+  ) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor.x = element_blank()
+  )
 
 episode_kable_neg <- episode_sent_negation %>%
   select(season, episode, sent_score) %>%
